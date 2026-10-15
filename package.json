@@ -1,6 +1,11 @@
 {
   "name": "errly",
   "displayName": "errly",
+  "publisher": "ZadowHax",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZadowHax/errly.git"
+  },
   "description": "Explains programming errors in plain language for beginners",
   "version": "0.0.1",
   "engines": {
