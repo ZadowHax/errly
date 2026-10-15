@@ -4,14 +4,21 @@ const API_URL = 'https://api.tokenfactory.nebius.com/v1/chat/completions';
 const MODEL = 'nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B';
 const MAX_CODE_CHARS = 6000;
 
-const SYSTEM_PROMPT = `You are Errly, a friendly debugging helper for beginner programmers.
-Explain errors in simple language without jargon, using the user's own code.
-Always answer with exactly these four headings, in this order:
+const SYSTEM_PROMPT = `You are Errly, a friendly debugging helper for beginner programmers who may know very little jargon.
+
+Explain the error using the user's own code and variable names.
+Answer with exactly these four headings, in this order:
 What happened?
 Why?
 How can I fix it?
 Example
-Keep each section short.`;
+
+Rules:
+- "What happened?" describes the problem in plain words. Never just repeat the error message.
+- "Why?" explains the cause in the user's code. If you use a technical word, explain it in simple terms.
+- "How can I fix it?" gives one clear step.
+- "Example" shows the user's own code corrected, in a fenced code block. The corrected code must run without the same error.
+- Keep every section to one or two short sentences, except Example.`;
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -27,6 +34,7 @@ async function askModel(apiKey: string, language: string, error: string, code: s
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 1500,
+      temperature: 0.3,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: `Language: ${language}\n\nError:\n${error}\n\nCode:\n${code}` },
@@ -63,16 +71,19 @@ function formatAnswer(text: string): string {
     .join('');
 }
 
-function showAnswer(text: string) {
+function showAnswer(text: string, error: string) {
   const panel = vscode.window.createWebviewPanel('errlyAnswer', 'Errly', vscode.ViewColumn.Beside, {});
   panel.webview.html = `<!DOCTYPE html><html><head><style>
     body { padding: 1rem; line-height: 1.5; }
     .text { white-space: pre-wrap; margin-bottom: 0.75rem; }
-    pre.code { background: var(--vscode-textCodeBlock-background); padding: 0.75rem; border-radius: 6px; overflow-x: auto; }
+    pre.code { background: var(--vscode-textCodeBlock-background); padding: 0.75rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; }
     code { font-family: var(--vscode-editor-font-family), monospace; }
-  </style></head><body>${formatAnswer(text)}</body></html>`;
+  </style></head><body>
+    <div class="text"><strong>Your error</strong></div>
+    <pre class="code"><code>${escapeHtml(error)}</code></pre>
+    ${formatAnswer(text)}
+  </body></html>`;
 }
-
 export function activate(context: vscode.ExtensionContext) {
   const setKey = vscode.commands.registerCommand('errly.setApiKey', async () => {
     const key = await vscode.window.showInputBox({
@@ -111,7 +122,7 @@ export function activate(context: vscode.ExtensionContext) {
       { location: vscode.ProgressLocation.Notification, title: 'Errly is thinking...' },
       async () => {
         try {
-          showAnswer(await askModel(apiKey, language, error, code));
+          showAnswer(await askModel(apiKey, language, error, code), error);
         } catch (e) {
           vscode.window.showErrorMessage(`Errly: ${e instanceof Error ? e.message : String(e)}`);
         }
