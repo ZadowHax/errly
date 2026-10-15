@@ -16,7 +16,7 @@ Example
 Rules:
 - "What happened?" describes the problem in plain words. Never just repeat the error message.
 - "Why?" explains the cause in the user's code. If you use a technical word, explain it in simple terms.
-- "How can I fix it?" gives one clear step.
+- "How can I fix it?" gives one clear step, not a list of alternatives.
 - "Example" shows the user's own code corrected, in a fenced code block. The corrected code must run without the same error.
 - Keep every section to one or two short sentences, except Example.`;
 
@@ -53,7 +53,7 @@ async function askModel(apiKey: string, language: string, error: string, code: s
 }
 
 function formatAnswer(text: string): string {
-  // Splitting on ``` to prevent the model from using its own formatting
+  // Split on ``` so code blocks can be shown as boxes
   const parts = text.split(/```[a-zA-Z]*\n?/);
   return parts
     .map((part, i) => {
@@ -84,6 +84,7 @@ function showAnswer(text: string, error: string) {
     ${formatAnswer(text)}
   </body></html>`;
 }
+
 export function activate(context: vscode.ExtensionContext) {
   const setKey = vscode.commands.registerCommand('errly.setApiKey', async () => {
     const key = await vscode.window.showInputBox({
@@ -103,8 +104,11 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.window.showErrorMessage('Errly: no API key yet. Run "Errly: Set API Key" first.');
       return;
     }
+    const clip = (await vscode.env.clipboard.readText()).trim();
+    const looksLikeError = /error|exception|traceback/i.test(clip) && clip.length < 2000;
     const error = await vscode.window.showInputBox({
       prompt: 'Paste the error message',
+      value: looksLikeError ? clip : '',
       ignoreFocusOut: true,
     });
     if (!error) {
@@ -130,6 +134,13 @@ export function activate(context: vscode.ExtensionContext) {
     );
   });
 
+  const statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  statusItem.text = '$(bug) Errly';
+  statusItem.tooltip = 'Ask Errly about an error';
+  statusItem.command = 'errly.askErrly';
+  statusItem.show();
+
+  context.subscriptions.push(statusItem);
   context.subscriptions.push(setKey, ask);
 }
 

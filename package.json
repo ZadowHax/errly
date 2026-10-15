@@ -6,6 +6,7 @@
     "type": "git",
     "url": "https://github.com/ZadowHax/errly.git"
   },
+  "license": "MIT",
   "description": "Explains programming errors in plain language for beginners",
   "version": "0.0.1",
   "engines": {
@@ -14,14 +15,24 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
-  "commands": [
-    { "command": "errly.askErrly", "title": "Ask Errly" },
-    { "command": "errly.setApiKey", "title": "Errly: Set API Key" }
-  ]
-},
+    "commands": [
+      { "command": "errly.askErrly", "title": "Ask Errly" },
+      { "command": "errly.setApiKey", "title": "Errly: Set API Key" }
+    ],
+    "menus": {
+      "editor/context": [
+        { "command": "errly.askErrly", "when": "editorTextFocus", "group": "navigation" }
+      ]
+    },
+    "keybindings": [
+      { "command": "errly.askErrly", "key": "ctrl+k ctrl+e", "mac": "cmd+k cmd+e", "when": "editorTextFocus" }
+    ]
+  },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
