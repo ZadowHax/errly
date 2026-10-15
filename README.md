@@ -1,71 +1,68 @@
-# errly README
+# Errly
 
-This is the README for your extension "errly". After writing up a brief description, we recommend including the following sections.
+A friendly debugging helper for beginner programmers, built as a VS Code extension.
+Paste an error message and Errly explains it in plain language, using your own code,
+with a short example of the fix.
 
-## Features
+## How it works
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+Errly sends your error message and the code from your open file (or your selection)
+to an NVIDIA open model hosted on Nebius, and shows the answer in a side panel:
 
-For example if there is an image subfolder under your extension project workspace:
+1. **Your error**: the message you pasted
+2. **What happened?**
+3. **Why?**
+4. **How can I fix it?**
+5. **Example**
 
-\!\[feature X\]\(images/feature-x.png\)
+## Models and services used
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+- **NVIDIA Nemotron**: `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` writes the explanations.
+- **Nebius Token Factory**: hosts the model and serves it through an OpenAI-compatible API.
+  (Describe here how Token Factory helped, for example the speed or how easy it was to start.)
 
-## Requirements
+## Setup
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+You need [Node.js](https://nodejs.org) and a free
+[Nebius Token Factory](https://tokenfactory.nebius.com) account with an API key.
 
-## Extension Settings
+### Run from source
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+```
+git clone https://github.com/YOUR-USERNAME/errly.git
+cd errly
+npm install
+npm run compile
+[LINUX/MacOS] code --extensionDevelopmentPath="$PWD"
+[WINDOWS] code --extensionDevelopmentPath="%CD%"
+```
 
-For example:
+### Install the packaged extension
 
-This extension contributes the following settings:
+Download `errly.vsix` from the Releases page, then run:
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+```
+code --install-extension errly-0.0.1.vsix
+```
 
-## Known Issues
+## Usage
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+1. Press `Ctrl+Shift+P`, run **Errly: Set API Key**, and paste your Token Factory key.
+   It is stored in VS Code's secret storage, not in any file.
+2. Open a file with a bug, run it, and copy the error message.
+3. Press `Ctrl+Shift+P`, run **Ask Errly**, and paste the error.
+   Select part of your code first to send only that part.
 
-## Release Notes
+## Languages
 
-Users appreciate release notes as you update your extension.
+Errly passes the file's language to the model, so it can explain errors in any language.
+It has been tested mainly with Python and JavaScript.
 
-### 1.0.0
+## Limitations
 
-Initial release of ...
+- Errors are pasted in manually. Errly does not detect them automatically.
+- The model reads your text but never runs your code, so its explanations can be wrong.
 
-### 1.0.1
+## License
 
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+MIT, see [LICENSE](LICENSE).
