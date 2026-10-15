@@ -57,6 +57,7 @@ code --install-extension errly-0.0.1.vsix
 
 Errly passes the file's language to the model, so it can explain errors in any language.
 It has been tested mainly with Python and JavaScript.
+In the future it's planned to add support for more programming languages such as Java, C#, C, C++.
 
 ## Limitations
 
