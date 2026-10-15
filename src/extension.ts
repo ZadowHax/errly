@@ -85,6 +85,37 @@ function showAnswer(text: string, error: string) {
   </body></html>`;
 }
 
+interface ErrorInfo {
+  message: string;
+  line?: number;
+}
+
+function isErrorInfo(x: unknown): x is ErrorInfo {
+  return typeof x === 'object' && x !== null && typeof (x as ErrorInfo).message === 'string';
+}
+
+class ErrlyCodeActionProvider implements vscode.CodeActionProvider {
+  static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix];
+
+  provideCodeActions(
+    document: vscode.TextDocument,
+    range: vscode.Range,
+    context: vscode.CodeActionContext
+  ): vscode.CodeAction[] {
+    const diagnostic = context.diagnostics.find(
+      (d) => d.severity === vscode.DiagnosticSeverity.Error
+    );
+    if (!diagnostic) {
+      return [];
+    }
+    const action = new vscode.CodeAction('Ask Errly about this error', vscode.CodeActionKind.QuickFix);
+    action.diagnostics = [diagnostic];
+    const info: ErrorInfo = { message: diagnostic.message, line: diagnostic.range.start.line + 1 };
+    action.command = { command: 'errly.askErrly', title: 'Ask Errly', arguments: [info] };
+    return [action];
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
   const setKey = vscode.commands.registerCommand('errly.setApiKey', async () => {
     const key = await vscode.window.showInputBox({
@@ -98,22 +129,30 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  const ask = vscode.commands.registerCommand('errly.askErrly', async () => {
+    const ask = vscode.commands.registerCommand('errly.askErrly', async (arg?: unknown) => {
     const apiKey = await context.secrets.get('errly.apiKey');
     if (!apiKey) {
       vscode.window.showErrorMessage('Errly: no API key yet. Run "Errly: Set API Key" first.');
       return;
     }
-    const clip = (await vscode.env.clipboard.readText()).trim();
-    const looksLikeError = /error|exception|traceback/i.test(clip) && clip.length < 2000;
-    const error = await vscode.window.showInputBox({
-      prompt: 'Paste the error message',
-      value: looksLikeError ? clip : '',
-      ignoreFocusOut: true,
-    });
-    if (!error) {
+
+    let rawError: string | undefined;
+    if (isErrorInfo(arg)) {
+      rawError = arg.line ? `Line ${arg.line}: ${arg.message}` : arg.message;
+    } else {
+      const clip = (await vscode.env.clipboard.readText()).trim();
+      const looksLikeError = /error|exception|traceback/i.test(clip) && clip.length < 2000;
+      rawError = await vscode.window.showInputBox({
+        prompt: 'Paste the error message',
+        value: looksLikeError ? clip : '',
+        ignoreFocusOut: true,
+      });
+    }
+    if (!rawError) {
       return;
     }
+    const error: string = rawError;
+
     let code = '';
     let language = 'unknown';
     const editor = vscode.window.activeTextEditor;
@@ -139,6 +178,14 @@ export function activate(context: vscode.ExtensionContext) {
   statusItem.tooltip = 'Ask Errly about an error';
   statusItem.command = 'errly.askErrly';
   statusItem.show();
+
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      [{ language: 'python' }, { language: 'javascript' }, { language: 'typescript' }, { language: 'java' }, { language: 'csharp' }],
+      new ErrlyCodeActionProvider(),
+      { providedCodeActionKinds: ErrlyCodeActionProvider.providedCodeActionKinds }
+    )
+  );
 
   context.subscriptions.push(statusItem);
   context.subscriptions.push(setKey, ask);
