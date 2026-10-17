@@ -110,8 +110,8 @@ function showAnswer(text: string, error: string, onFix?: () => void) {
   const nonce = Math.random().toString(36).slice(2);
   const fixArea = onFix
     ? '<button id="fix">Suggest a fix</button>'
-    : '<p class="hint">To get a fix suggestion, click the lightbulb on the error underline, or select the code first.</p>';
-  panel.webview.html = `<!DOCTYPE html><html><head>
+    : '<p class="hint">Open the file with the bug to get a fix suggestion.</p>';
+    panel.webview.html = `<!DOCTYPE html><html><head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
   <style>
     body { padding: 1rem; line-height: 1.5; }
@@ -215,23 +215,30 @@ export function activate(context: vscode.ExtensionContext) {
       language = doc.languageId;
       const selected = doc.getText(editor.selection);
       code = (selected || doc.getText()).slice(0, MAX_CODE_CHARS);
+
+      const makeTarget = (start: number, end: number): FixTarget => ({
+        uri: doc.uri,
+        startLine: Math.max(0, start),
+        endLine: Math.min(doc.lineCount - 1, end),
+        version: doc.version,
+        language,
+      });
+
       if (isErrorInfo(arg) && arg.line) {
-        const l = arg.line - 1;
-        target = {
-          uri: doc.uri,
-          startLine: Math.max(0, l - 3),
-          endLine: Math.min(doc.lineCount - 1, l + 3),
-          version: doc.version,
-          language,
-        };
+        target = makeTarget(arg.line - 4, arg.line + 2);
       } else if (!editor.selection.isEmpty) {
-        target = {
-          uri: doc.uri,
-          startLine: editor.selection.start.line,
-          endLine: editor.selection.end.line,
-          version: doc.version,
-          language,
-        };
+        target = makeTarget(editor.selection.start.line, editor.selection.end.line);
+      } else {
+        const fileName = doc.uri.path.split('/').pop() ?? '';
+        const guessed = guessErrorLine(error, fileName, language);
+        if (guessed !== undefined && guessed >= 1 && guessed <= doc.lineCount) {
+          target = makeTarget(guessed - 4, guessed + 2);
+        } else if (doc.getText().length <= MAX_CODE_CHARS) {
+          target = makeTarget(0, doc.lineCount - 1);
+        } else {
+          const cursor = editor.selection.active.line;
+          target = makeTarget(cursor - 5, cursor + 5);
+        }
       }
     }
     const fixTarget = target;
@@ -333,6 +340,31 @@ async function suggestFix(apiKey: string, target: FixTarget, error: string) {
   edit.replace(doc.uri, range, fixed);
   await vscode.workspace.applyEdit(edit);
   vscode.window.showInformationMessage('Errly: fix applied. Press Ctrl+Z to undo it.');
+}
+
+function guessErrorLine(error: string, fileName: string, language: string): number | undefined {
+  const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const found: number[] = [];
+  const patterns = [
+    new RegExp(`${escaped}:(\\d+)`, 'g'), // test.js:3 or Test.java:5
+    new RegExp(`${escaped}[^\\n]*?line (\\d+)`, 'gi'), // File "test.py", line 3
+  ];
+  for (const re of patterns) {
+    for (const m of error.matchAll(re)) {
+      found.push(Number(m[1]));
+    }
+  }
+  if (found.length === 0) {
+    const m = error.match(/line (\d+)/i);
+    if (m) {
+      found.push(Number(m[1]));
+    }
+  }
+  if (found.length === 0) {
+    return undefined;
+  }
+  // Python lists the failing line last; Java and JavaScript list it first
+  return language === 'python' ? found[found.length - 1] : found[0];
 }
 
 export function deactivate() {}
