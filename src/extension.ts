@@ -4,6 +4,20 @@ const API_URL = 'https://api.tokenfactory.nebius.com/v1/chat/completions';
 const MODEL = 'nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B';
 const MAX_CODE_CHARS = 6000;
 
+interface FixTarget {
+  uri: vscode.Uri;
+  startLine: number; // 0-based
+  endLine: number; // 0-based, inclusive
+  version: number;
+  language: string;
+}
+
+const FIX_PROMPT = `You fix bugs for beginner programmers.
+You get a programming language, an error message and a snippet of code.
+Return ONLY the corrected snippet inside one fenced code block.
+Keep the same indentation and leave everything that is not broken unchanged.
+Make the smallest change that fixes the error. Do not explain anything.`;
+
 const SYSTEM_PROMPT = `You are Errly, a friendly debugging helper for beginner programmers who may know very little jargon.
 
 Explain the error using the user's own code and variable names.
@@ -24,7 +38,7 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-async function askModel(apiKey: string, language: string, error: string, code: string): Promise<string> {
+async function callModel(apiKey: string, system: string, user: string, temperature: number): Promise<string> {
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: {
@@ -34,10 +48,10 @@ async function askModel(apiKey: string, language: string, error: string, code: s
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 1500,
-      temperature: 0.3,
+      temperature,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `Language: ${language}\n\nError:\n${error}\n\nCode:\n${code}` },
+        { role: 'system', content: system },
+        { role: 'user', content: user },
       ],
     }),
   });
@@ -50,6 +64,24 @@ async function askModel(apiKey: string, language: string, error: string, code: s
     throw new Error('The model returned an empty answer. Try again.');
   }
   return text;
+}
+
+async function askModel(apiKey: string, language: string, error: string, code: string): Promise<string> {
+  return callModel(apiKey, SYSTEM_PROMPT, `Language: ${language}\n\nError:\n${error}\n\nCode:\n${code}`, 0.3);
+}
+
+async function askForFix(apiKey: string, language: string, error: string, snippet: string): Promise<string> {
+  const text = await callModel(
+    apiKey,
+    FIX_PROMPT,
+    `Language: ${language}\n\nError:\n${error}\n\nCode to fix:\n${snippet}`,
+    0.2
+  );
+  const match = text.match(/```[a-zA-Z]*\r?\n([\s\S]*?)```/);
+  if (!match) {
+    throw new Error('The model did not return code I could use. Try again.');
+  }
+  return match[1].replace(/\r?\n$/, '');
 }
 
 function formatAnswer(text: string): string {
@@ -71,18 +103,39 @@ function formatAnswer(text: string): string {
     .join('');
 }
 
-function showAnswer(text: string, error: string) {
-  const panel = vscode.window.createWebviewPanel('errlyAnswer', 'Errly', vscode.ViewColumn.Beside, {});
-  panel.webview.html = `<!DOCTYPE html><html><head><style>
+function showAnswer(text: string, error: string, onFix?: () => void) {
+  const panel = vscode.window.createWebviewPanel('errlyAnswer', 'Errly', vscode.ViewColumn.Beside, {
+    enableScripts: true,
+  });
+  const nonce = Math.random().toString(36).slice(2);
+  const fixArea = onFix
+    ? '<button id="fix">Suggest a fix</button>'
+    : '<p class="hint">To get a fix suggestion, click the lightbulb on the error underline, or select the code first.</p>';
+  panel.webview.html = `<!DOCTYPE html><html><head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+  <style>
     body { padding: 1rem; line-height: 1.5; }
     .text { white-space: pre-wrap; margin-bottom: 0.75rem; }
     pre.code { background: var(--vscode-textCodeBlock-background); padding: 0.75rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; }
     code { font-family: var(--vscode-editor-font-family), monospace; }
+    button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+    .hint { opacity: 0.7; }
   </style></head><body>
     <div class="text"><strong>Your error</strong></div>
     <pre class="code"><code>${escapeHtml(error)}</code></pre>
     ${formatAnswer(text)}
+    ${fixArea}
+    <script nonce="${nonce}">
+      const vscodeApi = acquireVsCodeApi();
+      const btn = document.getElementById('fix');
+      if (btn) { btn.addEventListener('click', () => vscodeApi.postMessage({ type: 'fix' })); }
+    </script>
   </body></html>`;
+  panel.webview.onDidReceiveMessage((m) => {
+    if (m.type === 'fix' && onFix) {
+      onFix();
+    }
+  });
 }
 
 interface ErrorInfo {
@@ -155,17 +208,43 @@ export function activate(context: vscode.ExtensionContext) {
 
     let code = '';
     let language = 'unknown';
+    let target: FixTarget | undefined;
     const editor = vscode.window.activeTextEditor;
     if (editor) {
-      language = editor.document.languageId;
-      const selected = editor.document.getText(editor.selection);
-      code = (selected || editor.document.getText()).slice(0, MAX_CODE_CHARS);
+      const doc = editor.document;
+      language = doc.languageId;
+      const selected = doc.getText(editor.selection);
+      code = (selected || doc.getText()).slice(0, MAX_CODE_CHARS);
+      if (isErrorInfo(arg) && arg.line) {
+        const l = arg.line - 1;
+        target = {
+          uri: doc.uri,
+          startLine: Math.max(0, l - 3),
+          endLine: Math.min(doc.lineCount - 1, l + 3),
+          version: doc.version,
+          language,
+        };
+      } else if (!editor.selection.isEmpty) {
+        target = {
+          uri: doc.uri,
+          startLine: editor.selection.start.line,
+          endLine: editor.selection.end.line,
+          version: doc.version,
+          language,
+        };
+      }
     }
+    const fixTarget = target;
     await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: 'Errly is thinking...' },
       async () => {
         try {
-          showAnswer(await askModel(apiKey, language, error, code), error);
+          const answer = await askModel(apiKey, language, error, code);
+          showAnswer(
+            answer,
+            error,
+            fixTarget ? () => { void suggestFix(apiKey, fixTarget, error); } : undefined
+          );
         } catch (e) {
           vscode.window.showErrorMessage(`Errly: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -189,6 +268,71 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(statusItem);
   context.subscriptions.push(setKey, ask);
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider('errly-fix', {
+      provideTextDocumentContent(uri) {
+        return proposedFixes.get(uri.query) ?? '';
+      },
+    })
+  );
+}
+
+const proposedFixes = new Map<string, string>();
+
+async function suggestFix(apiKey: string, target: FixTarget, error: string) {
+  const doc = await vscode.workspace.openTextDocument(target.uri);
+  if (doc.version !== target.version) {
+    vscode.window.showWarningMessage('Errly: the file changed since the question. Ask Errly again.');
+    return;
+  }
+  const range = new vscode.Range(target.startLine, 0, target.endLine, doc.lineAt(target.endLine).text.length);
+  const snippet = doc.getText(range);
+  const eol = doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+
+  const fixed = await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: 'Errly is preparing a fix...' },
+    async () => {
+      try {
+        return (await askForFix(apiKey, target.language, error, snippet)).replace(/\r?\n/g, eol);
+      } catch (e) {
+        vscode.window.showErrorMessage(`Errly: ${e instanceof Error ? e.message : String(e)}`);
+        return undefined;
+      }
+    }
+  );
+  if (fixed === undefined) {
+    return;
+  }
+  if (fixed === snippet) {
+    vscode.window.showInformationMessage('Errly: no change to suggest for these lines.');
+    return;
+  }
+
+  const fullText = doc.getText();
+  const proposedText = fullText.slice(0, doc.offsetAt(range.start)) + fixed + fullText.slice(doc.offsetAt(range.end));
+  const id = String(Date.now());
+  proposedFixes.set(id, proposedText);
+  const fileName = target.uri.path.split('/').pop() ?? 'fix';
+  const previewUri = vscode.Uri.from({ scheme: 'errly-fix', path: '/' + fileName, query: id });
+  await vscode.commands.executeCommand(
+    'vscode.diff',
+    doc.uri,
+    previewUri,
+    'Errly: suggested fix (left = your code, right = suggestion)'
+  );
+
+  const choice = await vscode.window.showInformationMessage('Apply Errly\'s suggested fix?', 'Apply fix', 'Cancel');
+  if (choice !== 'Apply fix') {
+    return;
+  }
+  if (doc.version !== target.version) {
+    vscode.window.showWarningMessage('Errly: the file changed, so the fix was not applied.');
+    return;
+  }
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(doc.uri, range, fixed);
+  await vscode.workspace.applyEdit(edit);
+  vscode.window.showInformationMessage('Errly: fix applied. Press Ctrl+Z to undo it.');
 }
 
 export function deactivate() {}
