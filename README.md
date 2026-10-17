@@ -8,10 +8,10 @@ Built for the Nebius x NVIDIA Global AI Hackathon.
 
 ## How it works
 
-Errly sends your error message and the code from your open file (or your selection)
+Errly sends your error message and the code from your file (or your clipboard)
 to an NVIDIA open model hosted on Nebius, and shows the answer in a side panel:
 
-1. **Your error**: the message
+1. **Your error**
 2. **What happened?**
 3. **Why?**
 4. **How can I fix it?**
@@ -26,15 +26,21 @@ to an NVIDIA open model hosted on Nebius, and shows the answer in a side panel:
 
 ## Setup
 
-You need [VS Code](https://code.visualstudio.com) and a free
+You need [VS Code](https://code.visualstudio.com) and a 
 [Nebius Token Factory](https://tokenfactory.nebius.com) account with an API key.
 
 ### Option 1: Install from the release (quickest)
 
 1. Download the latest `.vsix` file from the [Releases page](https://github.com/ZadowHax/errly/releases).
-2. Open a terminal in the folder where it was downloaded and run (use the real file name):
+2. Open a VS Code terminal in the folder where it was downloaded and run:
 
 ```
+   # Go to the location where the file is downloaded (example path)
+   cd C:\Users\ZadowHax\Downloads
+```
+
+```
+   # Install the extension
    code --install-extension errly-0.0.1.vsix
 ```
 
