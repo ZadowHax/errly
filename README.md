@@ -26,8 +26,9 @@ to an NVIDIA open model hosted on Nebius, and shows the answer in a side panel:
 
 ## Setup
 
-You need [Node.js](https://nodejs.org) and a free
+You need [Node.js](https://nodejs.org) and a (free)
 [Nebius Token Factory](https://tokenfactory.nebius.com) account with an API key.
+
 
 ### Run from source
 
