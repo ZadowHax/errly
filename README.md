@@ -24,6 +24,9 @@ to an NVIDIA open model hosted on Nebius, and shows the answer in a side panel:
   and every suggested fix in Errly is one request to Token Factory, made with a plain `fetch` call
   and an API key. That means Errly needs no SDK and no backend server of its own.
 
+Token Factory was the only Nebius service used. Having the model ready behind a hosted API
+meant I could focus on the extension itself and skip any GPU or server setup.
+
 ## Setup
 
 You need [VS Code](https://code.visualstudio.com) and a 
