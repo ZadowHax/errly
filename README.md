@@ -26,11 +26,25 @@ to an NVIDIA open model hosted on Nebius, and shows the answer in a side panel:
 
 ## Setup
 
-You need [Node.js](https://nodejs.org) and a (free)
+You need [VS Code](https://code.visualstudio.com) and a free
 [Nebius Token Factory](https://tokenfactory.nebius.com) account with an API key.
 
+### Option 1: Install from the release (quickest)
 
-### Run from source
+1. Download the latest `.vsix` file from the [Releases page](https://github.com/ZadowHax/errly/releases).
+2. Open a terminal in the folder where it was downloaded and run (use the real file name):
+
+```
+   code --install-extension errly-0.0.1.vsix
+```
+
+   Or in VS Code open the Extensions panel, click the `...` menu, choose **Install from VSIX...**,
+   and pick the file.
+3. Restart VS Code, then follow the **Usage** steps below to add your API key.
+
+### Option 2: Run from source
+
+You also need [Node.js](https://nodejs.org).
 
 ```
 git clone https://github.com/ZadowHax/errly.git
@@ -47,14 +61,6 @@ code --extensionDevelopmentPath="$PWD"
 
 # Windows Command Prompt
 code --extensionDevelopmentPath="%CD%"
-```
-
-### Install the packaged extension
-
-Download `errly-0.0.1.vsix` from the Releases page, then run:
-
-```
-code --install-extension errly-0.0.1.vsix
 ```
 
 ## Usage
