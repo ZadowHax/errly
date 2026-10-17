@@ -78,9 +78,11 @@ code --extensionDevelopmentPath="%CD%"
    It is stored in VS Code's secret storage, not in any file.
 2. Get an explanation in whichever way is easiest:
    - **Lightbulb:** click the lightbulb and choose **Ask Errly about this error**. Errly reads the error for you.
-   - **Right-click** in the editor and choose **Ask Errly**, click **Errly** in the status bar,
+   - **Right-click** in the editor and choose **Ask Errly**
      or press `Ctrl+K Ctrl+E`, then paste an error from your terminal.
-     If you already copied an error, it is filled in automatically.
+   - **Errly icon:** click the Errly icon on the bottom left of your screen in the status bar.
+   - **CTRL+SHIFT+P:** search in the command palette for "Ask Errly"
+   If you already copied an error, it is filled in automatically for every way of asking Errly.
 3. Read the explanation: your error, what happened, why, how to fix it, and a short example.
 4. Click **Suggest a fix**. Errly shows the change as a side-by-side diff, and nothing changes
    in your file unless you click **Apply fix**. `Ctrl+Z` undoes it.
